@@ -2,34 +2,58 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>משחק יריות פשוט ב-Canvas</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>משחק יריות כפכפים</title>
   <style>
-    body { margin: 0; background: #0f1226; }
+    body { margin: 0; background: #0f1226; overflow: hidden; }
     canvas { display: block; margin: 0 auto; background: #0b0f24; }
+
+    /* כפתורי שליטה בנייד */
+    #controls {
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+      height: 120px;
+      display: flex;
+      z-index: 10;
+    }
+    #left, #right {
+      flex: 1;
+      height: 100%;
+    }
+    /* אפשר לשים צבעים שקופים כדי לראות את האזור (לבדיקה) */
+    #left { background: rgba(255,0,0,0.2); }
+    #right { background: rgba(0,0,255,0.2); }
   </style>
 </head>
 <body>
-  <canvas id="game" width="900" height="600"></canvas>
+  <canvas id="game"></canvas>
+
+  <!-- כפתורי שליטה -->
+  <div id="controls">
+    <div id="left"></div>
+    <div id="right"></div>
+  </div>
+
 <script>
 (() => {
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
 
-  const W = canvas.width;
-  const H = canvas.height;
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
 
-  // טעינת תמונת האויב
-  const enemyImg = new Image();
-  enemyImg.src = "bugs.png"; 
+  const W = () => canvas.width;
+  const H = () => canvas.height;
 
-  // טעינת תמונת השחקן
-  const playerImg = new Image();
-  playerImg.src = "player.png"; 
-
-  // טעינת תמונת הקליע (כפכף)
-  const bulletImg = new Image();
-  bulletImg.src = "flipflop.png"; 
+  // טעינת תמונות
+  const enemyImg = new Image(); enemyImg.src = "bugs.png";
+  const playerImg = new Image(); playerImg.src = "player.png";
+  const bulletImg = new Image(); bulletImg.src = "flipflop.png";
 
   let state = {
     running: true,
@@ -39,17 +63,18 @@
     fallSpeed: 2.2,
     spawnEverySec: 0.9,
     spawnTimer: 0,
-    player: { x: W/2, y: H - 70, w: 90, h: 90, speed: 6 },
+    player: { x: W()/2, y: H()-90, w: 90, h: 90, speed: 8 },
     bullets: [],
     enemies: [],
     keys: { left: false, right: false },
-    shootTimer: 0 
+    shootTimer: 0
   };
 
-  function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
   function rand(a,b){ return Math.random()*(b-a)+a; }
   function now(){ return performance.now()/1000; }
 
+  // שליטה במחשב
   window.addEventListener('keydown', e => {
     if (e.code === 'ArrowLeft' || e.code === 'KeyA') state.keys.left = true;
     if (e.code === 'ArrowRight' || e.code === 'KeyD') state.keys.right = true;
@@ -60,22 +85,29 @@
     if (e.code === 'ArrowRight' || e.code === 'KeyD') state.keys.right = false;
   });
 
+  // שליטה בנייד
+  document.getElementById('left').addEventListener('touchstart', () => state.keys.left = true);
+  document.getElementById('left').addEventListener('touchend', () => state.keys.left = false);
+  document.getElementById('right').addEventListener('touchstart', () => state.keys.right = true);
+  document.getElementById('right').addEventListener('touchend', () => state.keys.right = false);
+
   function restart(){
     state.running = true;
     state.gameOver = false;
     state.score = 0;
     state.bullets = [];
     state.enemies = [];
-    state.player.x = W/2;
+    state.player.x = W()/2;
+    state.player.y = H()-90;
     state.spawnTimer = 0;
     state.lives = 3;
     state.shootTimer = 0;
   }
 
   function spawnEnemy(){
-    const size = rand(80, 120);
+    const size = rand(80,120); // הגדלתי את האויבים
     const enemy = {
-      x: rand(size/2, W - size/2),
+      x: rand(size/2, W()-size/2),
       y: -size/2,
       w: size,
       h: size,
@@ -86,8 +118,8 @@
   }
 
   function shoot(){
-    const {x, y} = state.player;
-    state.bullets.push({ x: x, y: y - 40, w: 70, h: 70, vy: -10 });
+    const {x,y} = state.player;
+    state.bullets.push({ x: x, y: y - 40, w: 80, h: 80, vy: -10 });
   }
 
   function update(dt){
@@ -95,11 +127,11 @@
 
     if (state.keys.left) state.player.x -= state.player.speed;
     if (state.keys.right) state.player.x += state.player.speed;
-    state.player.x = clamp(state.player.x, state.player.w/2 + 6, W - state.player.w/2 - 6);
+    state.player.x = clamp(state.player.x, state.player.w/2+6, W()-state.player.w/2-6);
 
     // ירי אוטומטי
     state.shootTimer += dt;
-    if (state.shootTimer >= 0.3) { 
+    if (state.shootTimer >= 0.3){
       shoot();
       state.shootTimer = 0;
     }
@@ -119,18 +151,18 @@
       const e = state.enemies[i];
       for (let j=state.bullets.length-1; j>=0; j--){
         const b = state.bullets[j];
-        if (circleRectCollide(b.x, b.y, 15, e.x-e.w/2, e.y-e.h/2, e.w, e.h)){
+        if (circleRectCollide(b.x,b.y,30,e.x-e.w/2,e.y-e.h/2,e.w,e.h)){
           state.enemies.splice(i,1);
           state.bullets.splice(j,1);
           state.score += 10;
           continue outer;
         }
-      }    
+      }
     }
 
     for (let i=state.enemies.length-1; i>=0; i--){
       const e = state.enemies[i];
-      if (e.y - e.h/2 > H){
+      if (e.y - e.h/2 > H()){
         state.enemies.splice(i,1);
         state.lives -= 1;
         if (state.lives <= 0){ gameOver(); break; }
@@ -138,45 +170,35 @@
     }
   }
 
-  function circleRectCollide(cx, cy, cr, rx, ry, rw, rh){
-    const testX = clamp(cx, rx, rx+rw);
-    const testY = clamp(cy, ry, ry+rh);
-    const distX = cx - testX;
-    const distY = cy - testY;
-    return (distX*distX + distY*distY) <= cr*cr;
+  function circleRectCollide(cx,cy,cr,rx,ry,rw,rh){
+    const testX = clamp(cx,rx,rx+rw);
+    const testY = clamp(cy,ry,rh+ry);
+    const dx = cx - testX;
+    const dy = cy - testY;
+    return (dx*dx + dy*dy) <= cr*cr;
   }
 
-  function gameOver(){
-    state.running = false;
-    state.gameOver = true;
-  }
+  function gameOver(){ state.running = false; state.gameOver = true; }
 
   function draw(){
-    ctx.clearRect(0,0,W,H);
+    ctx.clearRect(0,0,W(),H());
 
     drawPlayer();
 
-    // ציור יריות (כפכפים)
+    // יריות
     for (const b of state.bullets){
       if (bulletImg.complete){
-        ctx.drawImage(bulletImg, b.x - b.w/2, b.y - b.h/2, b.w, b.h);
-      } else {
-        ctx.fillStyle = '#e8e8ff';
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, 6, 0, Math.PI*2);
-        ctx.fill();
+        ctx.drawImage(bulletImg, b.x-b.w/2, b.y-b.h/2, b.w, b.h);
       }
     }
 
+    // אויבים
     for (const e of state.enemies){
       ctx.save();
-      ctx.translate(e.x, e.y);
+      ctx.translate(e.x,e.y);
       ctx.rotate(e.rotation);
       if (enemyImg.complete){
-        ctx.drawImage(enemyImg, -e.w/2, -e.h/2, e.w, e.h);
-      } else {
-        ctx.fillStyle = '#ff8ba7';
-        ctx.fillRect(-e.w/2, -e.h/2, e.w, e.h);
+        ctx.drawImage(enemyImg, -e.w/2,-e.h/2,e.w,e.h);
       }
       ctx.restore();
     }
@@ -190,9 +212,9 @@
       ctx.fillStyle = '#fff';
       ctx.font = '28px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText('Game Over', W/2, H/2);
+      ctx.fillText('Game Over', W()/2, H()/2);
       ctx.font = '16px Arial';
-      ctx.fillText('לחץ Enter כדי להתחיל מחדש', W/2, H/2 + 30);
+      ctx.fillText('לחץ Enter כדי להתחיל מחדש', W()/2, H()/2 + 30);
       ctx.textAlign = 'start';
     }
   }
@@ -200,12 +222,9 @@
   function drawPlayer(){
     const p = state.player;
     ctx.save();
-    ctx.translate(p.x, p.y);
-    if (playerImg.complete) {
+    ctx.translate(p.x,p.y);
+    if (playerImg.complete){
       ctx.drawImage(playerImg, -p.w/2, -p.h/2, p.w, p.h);
-    } else {
-      ctx.fillStyle = '#38bdf8';
-      ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
     }
     ctx.restore();
   }
@@ -213,9 +232,8 @@
   let last = now();
   function loop(){
     const t = now();
-    const dt = Math.min(0.05, t - last);
+    const dt = Math.min(0.05, t-last);
     last = t;
-
     if (state.running) update(dt);
     draw();
     requestAnimationFrame(loop);
